@@ -52,25 +52,25 @@ async def add_user(user: AddUserInfo, db: Session = Depends(get_db)):
 
 
 @app.get("/api/username/{uuid}")
-async def get_username(uuid: str, db: Session = Depends(get_db)):
+async def get_username(uuid: str, db: Session = Depends(get_db)) -> str:
     u = db.query(models.User).filter(models.User.id == uuid).first()
     if u is None:
         raise HTTPException(400, "Unknown id")
-    return u.username
+    return str(u.loginname)
 
 
 @app.get("/api/uuid/{username}")
-async def get_uuid(username: str, db: Session = Depends(get_db)):
+async def get_uuid(username: str, db: Session = Depends(get_db)) -> str:
     u = db.query(models.User).filter(models.User.loginname == username.lower()).first()
     if u is None:
         raise HTTPException(400, "Unknown username")
-    return u.username
+    return str(u.loginname)
 
 
 @app.get("/api/ledger")
 async def get_amount(
     userid=Depends(get_current_user_id), db: Session = Depends(get_db)
-):
+) -> int:
     print(userid)
     l = db.query(models.Ledger).filter(models.Ledger.owner_id == userid).first()
     if l is None:
@@ -78,12 +78,12 @@ async def get_amount(
     return l.amount
 
 
-@app.post("/api/transactions")
+@app.post("/api/transactions", response_model=schemas.Transaction)
 async def set_transaction(
     transaction: AddTransaction,
-    userid=Depends(get_current_user_id),
+    userid: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
-):
+) -> models.Transactions:
     if transaction.amount <= 0:
         raise HTTPException(400, "Transaction amount non-positive")
     l = db.query(models.Ledger).filter(models.Ledger.owner_id == userid).first()

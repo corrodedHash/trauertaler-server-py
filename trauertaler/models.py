@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -26,4 +26,4 @@ class Transactions(Base):
     id = Column(Integer, primary_key=True, index=True)
     sender_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    sendtime = Column(Integer, nullable=False)
+    sendtime = Column(DateTime, nullable=False)

@@ -14,6 +14,7 @@ python-multipart = "*"
 [dev-packages]
 mypy = "*"
 black = "*"
+types-passlib = "*"
 
 [requires]
 python_version = "3.10"

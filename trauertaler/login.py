@@ -30,7 +30,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 router = APIRouter()
 
 
-def get_password_hash(password) -> str:
+def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
@@ -67,7 +67,7 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
-):
+) -> dict[str, str]:
     user = (
         db.query(models.User)
         .filter(models.User.loginname == form_data.username.lower())
@@ -80,12 +80,12 @@ async def login_for_access_token(
     )
     if user is None:
         raise login_exception
-    check = pwd_context.verify(form_data.password, user.hashed_password)
+    check = pwd_context.verify(form_data.password, str(user.hashed_password))
     if not check:
         raise login_exception
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.id}, expires_delta=access_token_expires
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
