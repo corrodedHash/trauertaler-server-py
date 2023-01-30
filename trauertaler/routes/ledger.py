@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,6 @@ class AddTransaction(BaseModel):
         return v
 
 
-
 @router.get("/ledger")
 async def get_amount(
     userid: int = Depends(get_current_user_id), db: Session = Depends(get_db)
@@ -40,6 +39,9 @@ async def get_amount(
     if l is None:
         raise HTTPException(400, "Unknown user")
     return l.amount
+
+
+websockets: dict[int, list[WebSocket]] = {}
 
 
 @router.post("/transactions", response_model=Transaction)
@@ -65,11 +67,29 @@ async def set_transaction(
     l.amount -= transaction.amount
     r.amount += transaction.amount
     t = models.Transactions(
-        sender_id=userid, receiver_id=r.owner_id, sendtime=datetime.utcnow()
+        sender_id=userid,
+        receiver_id=r.owner_id,
+        sendtime=datetime.utcnow(),
+        amount=transaction.amount,
     )
     db.add(t)
     db.commit()
     db.refresh(t)
+    send_futures = [
+        ws.send_json(
+            {
+                "sender": t.sender_id,
+                "receiver": t.receiver_id,
+                "sendtime": t.sendtime,
+                "amount": t.amount,
+            }
+        )
+        for ws in websockets.get(t.sender_id, list())
+        + websockets.get(t.receiver_id, list())
+    ]
+    for f in send_futures:
+        await f
+
     return t
 
 
@@ -91,3 +111,15 @@ async def get_transaction(
         .all()
     )
     return l
+
+@router.websocket("/subscribe")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    userid: int = Depends(get_current_user_id),
+) -> None:
+    await websocket.accept()
+    websockets.get(userid, list())
+    try:
+        pass
+    except WebSocketDisconnect:
+        pass

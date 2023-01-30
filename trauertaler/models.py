@@ -40,3 +40,4 @@ class Transactions(Base):
         index=True,
     )
     sendtime: Mapped[datetime] = mapped_column()
+    amount: Mapped[int] = mapped_column()

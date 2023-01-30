@@ -10,6 +10,7 @@ pyjwt = "*"
 sqlalchemy = {extras = ["mypy"], version = "*"}
 passlib = "*"
 python-multipart = "*"
+websockets = "*"
 
 [dev-packages]
 mypy = "*"

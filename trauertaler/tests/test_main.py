@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import os
 from trauertaler.models import Base as DBBase
 from trauertaler.config import config
-from trauertaler.database import  get_db
+from trauertaler.database import get_db
 from trauertaler.main import app
 
 client = TestClient(app)
@@ -44,7 +44,6 @@ app.dependency_overrides[get_db] = override_get_db
 
 
 def test_read_item() -> None:
-    print(config.admin_pass)
     response = client.post(
         "/admin/add_user",
         auth=("admin", config.admin_pass + "a"),
@@ -60,12 +59,20 @@ def test_read_item() -> None:
     assert response.status_code == 200, response.json()
     assert response.json() == 1
 
+    response = client.get("/username/2")
+    assert response.status_code == 400
+
+    response = client.post(
+        "/admin/add_user",
+        auth=("admin", config.admin_pass),
+        json={"username": "hoho", "password": "bla"},
+    )
+    assert response.status_code == 200, response.json()
+    assert response.json() == 2
+
     response = client.get("/username/1")
     assert response.status_code == 200
     assert response.json() == "hihi"
-
-    response = client.get("/username/2")
-    assert response.status_code == 400
 
     response = client.get("/uuid/hihi")
     assert response.status_code == 200
@@ -73,3 +80,33 @@ def test_read_item() -> None:
 
     response = client.get("/uuid/hihia")
     assert response.status_code == 400
+
+    response = client.post(
+        "/token",
+        content=f"grant_type=password&username=hihi&password=bla",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 200
+    token_1 = response.json()["access_token"]
+
+    response = client.post(
+        "/token",
+        content=f"grant_type=password&username=hoho&password=bla",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 200
+    token_2 = response.json()["access_token"]
+
+    response = client.get(
+        "/transactions",
+        headers={"Authorization": f"Bearer {token_1}"},
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    with client.websocket_connect(
+        "/subscribe",
+        headers={"Authorization": f"Bearer {token_1}"},
+    ) as websocket:
+        data = websocket.receive_json()
+        assert data == {"msg": "Hello WebSocket"}
