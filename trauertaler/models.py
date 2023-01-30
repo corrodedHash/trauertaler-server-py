@@ -1,5 +1,6 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey
+from datetime import datetime
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
 
@@ -7,23 +8,35 @@ from .database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    loginname = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    loginname: Mapped[str] = mapped_column(
+        unique=True,
+        index=True,
+    )
+    hashed_password: Mapped[str] = mapped_column()
 
 
 class Ledger(Base):
     __tablename__ = "ledger"
 
-    id = Column(Integer, primary_key=True)
-    amount = Column(Integer, nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        index=True,
+    )
+    amount: Mapped[int] = mapped_column()
 
 
 class Transactions(Base):
     __tablename__ = "transactions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    sender_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    receiver_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    sendtime = Column(DateTime, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    sender_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        index=True,
+    )
+    receiver_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        index=True,
+    )
+    sendtime: Mapped[datetime] = mapped_column()

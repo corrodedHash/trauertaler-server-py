@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
 from . import database, login, models, schemas
@@ -13,11 +13,11 @@ from .database import engine
 
 meta_data = MetaData()
 
-app = FastAPI()
+app = FastAPI(root_path="/api")
 app.include_router(login.router)
 
 
-models.Base.metadata.create_all(bind=engine)
+database.Base.metadata.create_all(bind=engine)
 
 
 class AddUserInfo(BaseModel):
@@ -29,9 +29,15 @@ class AddTransaction(BaseModel):
     receiver_id: str
     amount: int
 
+    @validator("amount")
+    def amount_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Amount must be positive")
+        return v
 
-@app.post("/api/admin/add_user", include_in_schema=False)
-async def add_user(user: AddUserInfo, db: Session = Depends(get_db)):
+
+@app.post("/admin/add_user", include_in_schema=False)
+async def add_user(user: AddUserInfo, db: Session = Depends(get_db)) -> int:
     eu = (
         db.query(models.User)
         .filter(models.User.loginname == user.username.lower())
@@ -51,7 +57,7 @@ async def add_user(user: AddUserInfo, db: Session = Depends(get_db)):
     return u.id
 
 
-@app.get("/api/username/{uuid}")
+@app.get("/username/{uuid}")
 async def get_username(uuid: str, db: Session = Depends(get_db)) -> str:
     u = db.query(models.User).filter(models.User.id == uuid).first()
     if u is None:
@@ -59,7 +65,7 @@ async def get_username(uuid: str, db: Session = Depends(get_db)) -> str:
     return str(u.loginname)
 
 
-@app.get("/api/uuid/{username}")
+@app.get("/uuid/{username}")
 async def get_uuid(username: str, db: Session = Depends(get_db)) -> str:
     u = db.query(models.User).filter(models.User.loginname == username.lower()).first()
     if u is None:
@@ -67,9 +73,9 @@ async def get_uuid(username: str, db: Session = Depends(get_db)) -> str:
     return str(u.loginname)
 
 
-@app.get("/api/ledger")
+@app.get("/ledger")
 async def get_amount(
-    userid=Depends(get_current_user_id), db: Session = Depends(get_db)
+    userid: int = Depends(get_current_user_id), db: Session = Depends(get_db)
 ) -> int:
     print(userid)
     l = db.query(models.Ledger).filter(models.Ledger.owner_id == userid).first()
@@ -78,14 +84,12 @@ async def get_amount(
     return l.amount
 
 
-@app.post("/api/transactions", response_model=schemas.Transaction)
+@app.post("/transactions", response_model=schemas.Transaction)
 async def set_transaction(
     transaction: AddTransaction,
     userid: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> models.Transactions:
-    if transaction.amount <= 0:
-        raise HTTPException(400, "Transaction amount non-positive")
     l = db.query(models.Ledger).filter(models.Ledger.owner_id == userid).first()
     if l is None:
         raise HTTPException(400, "Unknown user")
@@ -100,8 +104,8 @@ async def set_transaction(
     )
     if r is None:
         raise HTTPException(402, "Unknown receiver")
-    l.update({"amount": l.amount - transaction.amount})
-    r.update({"amount": r.amount + transaction.amount})
+    l.amount -= transaction.amount
+    r.amount += transaction.amount
     t = models.Transactions(
         sender_id=userid, receiver_id=r.owner_id, sendtime=datetime.utcnow()
     )
@@ -111,11 +115,21 @@ async def set_transaction(
     return t
 
 
-@app.get("/api/transactions")
+@app.get("/transactions")
 async def get_transaction(
-    userid=Depends(get_current_user_id), skip: int = 0, limit: int = 10
-):
+    userid: int = Depends(get_current_user_id),
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+) -> list[models.Transactions]:
     limit = min(limit, 10)
     if limit < 0:
         limit = 10
-    return {}
+    l = (
+        db.query(models.Transactions)
+        .filter(models.Transactions.id == userid)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return l
