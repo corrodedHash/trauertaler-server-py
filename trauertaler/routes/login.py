@@ -6,16 +6,10 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from trauertaler.config import Config, get_config
+from .. import models
 
-from . import models
-
-from .database import get_db
-
-# to get a string like this run:
-# openssl rand -hex 32
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+from ..database import get_db
 
 
 class Token(BaseModel):
@@ -35,7 +29,10 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(
-    data: dict[str, str | datetime], expires_delta: timedelta | None = None
+    data: dict[str, str | datetime],
+    secret_key: str,
+    algorithm: str,
+    expires_delta: timedelta | None = None,
 ) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -43,19 +40,21 @@ def create_access_token(
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
     return encoded_jwt
 
 
-async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
+async def get_current_user_id(
+    token: str = Depends(oauth2_scheme), config: Config = Depends(get_config)
+) -> str:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, config.secret_key, algorithms=[config.algorithm])
         userid: str | None = payload.get("sub")
         if userid is None:
             raise credentials_exception
@@ -66,7 +65,9 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+    config: Config = Depends(get_config),
 ) -> dict[str, str]:
     user = (
         db.query(models.User)
@@ -83,13 +84,27 @@ async def login_for_access_token(
     check = pwd_context.verify(form_data.password, str(user.hashed_password))
     if not check:
         raise login_exception
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=config.access_token_exprire_minutes)
     access_token = create_access_token(
-        data={"sub": str(user.id)}, expires_delta=access_token_expires
+        data={"sub": str(user.id)},
+        expires_delta=access_token_expires,
+        secret_key=config.secret_key,
+        algorithm=config.algorithm,
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# @app.get("/users/me/", response_model=User)
-# async def read_users_me(current_user: User = Depends(get_current_active_user)):
-#     return current_user
+@router.get("/username/{uuid}")
+async def get_username(uuid: str, db: Session = Depends(get_db)) -> str:
+    u = db.query(models.User).filter(models.User.id == uuid).first()
+    if u is None:
+        raise HTTPException(400, "Unknown id")
+    return str(u.loginname)
+
+
+@router.get("/uuid/{username}")
+async def get_uuid(username: str, db: Session = Depends(get_db)) -> str:
+    u = db.query(models.User).filter(models.User.loginname == username.lower()).first()
+    if u is None:
+        raise HTTPException(400, "Unknown username")
+    return str(u.id)
