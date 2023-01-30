@@ -45,6 +45,11 @@ def create_access_token(
     return encoded_jwt
 
 
+def get_userid_from_jwt(token: str, key: str, algorithm: str) -> str | None:
+    payload = jwt.decode(token, key, algorithms=[algorithm])
+    return payload.get("sub")
+
+
 async def get_current_user_id(
     token: str = Depends(oauth2_scheme), config: Config = Depends(get_config)
 ) -> str:
@@ -54,8 +59,9 @@ async def get_current_user_id(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, config.secret_key, algorithms=[config.algorithm])
-        userid: str | None = payload.get("sub")
+        userid = get_userid_from_jwt(
+            token, config.secret_key, algorithm=config.algorithm
+        )
         if userid is None:
             raise credentials_exception
         return userid

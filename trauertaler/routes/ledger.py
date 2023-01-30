@@ -1,12 +1,21 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketException,
+    WebSocketDisconnect,
+    Header,
+)
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
 from trauertaler import models
+from trauertaler.config import Config, get_config
 from trauertaler.database import get_db
-from trauertaler.routes.login import get_current_user_id
+from trauertaler.routes.login import get_current_user_id, get_userid_from_jwt
 
 
 router = APIRouter()
@@ -112,13 +121,23 @@ async def get_transaction(
     )
     return l
 
+
 @router.websocket("/subscribe")
 async def websocket_endpoint(
     websocket: WebSocket,
-    userid: int = Depends(get_current_user_id),
+    authorization: str | None = Header(default=None),
+    config: Config = Depends(get_config),
 ) -> None:
+    if authorization is None:
+        raise WebSocketException(401, "Unauthorized")
+    userid = get_userid_from_jwt(
+        authorization.split(" ")[-1], config.secret_key, config.algorithm
+    )
+    if userid is None:
+        raise WebSocketException(401, "Unauthorized")
+
     await websocket.accept()
-    websockets.get(userid, list())
+    websockets.get(int(userid), list())
     try:
         pass
     except WebSocketDisconnect:
