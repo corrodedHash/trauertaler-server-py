@@ -104,9 +104,45 @@ def test_read_item() -> None:
     assert response.status_code == 200
     assert response.json() == []
 
+    response = client.post(
+        "/admin/set_amount",
+        auth=("admin", config.admin_pass),
+        json={"userid": 1, "amount": 2000},
+    )
+    assert response.status_code == 200
+    assert response.json() == 2000
+
+    response = client.get(
+        "/ledger",
+        headers={"Authorization": f"Bearer {token_1}"},
+    )
+    assert response.status_code == 200
+    assert response.json() == 2000
+
+    response = client.post(
+        "/transactions",
+        headers={
+            "Authorization": f"Bearer {token_1}",
+        },
+        json={"receiver_id": 2, "amount": 1000},
+    )
+    assert response.status_code == 200
+    assert response.json()["amount"] == 1000
+    assert str(response.json()["receiver_id"]) == str(2)
+    assert str(response.json()["sender_id"]) == str(1)
+
     with client.websocket_connect(
         "/subscribe",
         headers={"Authorization": f"Bearer {token_1}"},
     ) as websocket:
+        response = client.post(
+            "/transactions",
+            headers={
+                "Authorization": f"Bearer {token_2}",
+            },
+            json={"receiver_id": 1, "amount": 200},
+        )
         data = websocket.receive_json()
-        assert data == {"msg": "Hello WebSocket"}
+        assert str(data["sender"]) == str(2)
+        assert str(data["receiver"]) == str(1)
+        assert str(data["amount"] == 200)

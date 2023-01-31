@@ -27,6 +27,9 @@ class Transaction(BaseModel):
     amount: int
     sendtime: datetime
 
+    class Config:
+        orm_mode = True
+
 
 class AddTransaction(BaseModel):
     receiver_id: str
@@ -43,7 +46,6 @@ class AddTransaction(BaseModel):
 async def get_amount(
     userid: int = Depends(get_current_user_id), db: Session = Depends(get_db)
 ) -> int:
-    print(userid)
     l = db.query(models.Ledger).filter(models.Ledger.owner_id == userid).first()
     if l is None:
         raise HTTPException(400, "Unknown user")
@@ -89,7 +91,7 @@ async def set_transaction(
             {
                 "sender": t.sender_id,
                 "receiver": t.receiver_id,
-                "sendtime": t.sendtime,
+                "sendtime": str(t.sendtime),
                 "amount": t.amount,
             }
         )
@@ -98,7 +100,6 @@ async def set_transaction(
     ]
     for f in send_futures:
         await f
-
     return t
 
 
@@ -137,7 +138,10 @@ async def websocket_endpoint(
         raise WebSocketException(401, "Unauthorized")
 
     await websocket.accept()
-    websockets.get(int(userid), list())
+    if int(userid) not in websockets:
+        websockets[int(userid)] = []
+    websockets[int(userid)].append(websocket)
+
     try:
         pass
     except WebSocketDisconnect:

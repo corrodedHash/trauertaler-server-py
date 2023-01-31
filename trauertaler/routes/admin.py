@@ -2,7 +2,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
 from trauertaler import models
@@ -69,3 +69,29 @@ async def add_user(
     db.add(l)
     db.commit()
     return u.id
+
+
+class SetAmount(BaseModel):
+    userid: str
+    amount: int
+
+    @validator("amount")
+    def check_amount(cls, v: int) -> int:
+        if v <= 0:
+            raise HTTPException(400, "Amount must not be negative")
+        return v
+
+
+@router.post("/set_amount")
+async def set_amount(
+    info: SetAmount,
+    db: Session = Depends(get_db),
+    credential: str = Depends(get_current_username),
+) -> int:
+    eu = db.query(models.Ledger).filter(models.Ledger.id == info.userid).first()
+    if eu is None:
+        raise HTTPException(400, "User does not exists")
+    eu.amount = info.amount
+    db.commit()
+    db.refresh(eu)
+    return eu.amount
