@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.sql import func
 from .database import Base as Base
 
 
@@ -14,6 +14,7 @@ class User(Base):
         index=True,
     )
     hashed_password: Mapped[str] = mapped_column()
+    last_password_change: Mapped[datetime] = mapped_column(default=func.now())
 
 
 class Ledger(Base):
@@ -39,5 +40,5 @@ class Transactions(Base):
         ForeignKey("users.id"),
         index=True,
     )
-    sendtime: Mapped[datetime] = mapped_column()
+    sendtime: Mapped[datetime] = mapped_column(default=func.now())
     amount: Mapped[int] = mapped_column()

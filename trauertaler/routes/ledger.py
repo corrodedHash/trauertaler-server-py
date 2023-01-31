@@ -80,7 +80,6 @@ async def set_transaction(
     t = models.Transactions(
         sender_id=userid,
         receiver_id=r.owner_id,
-        sendtime=datetime.utcnow(),
         amount=transaction.amount,
     )
     db.add(t)
@@ -128,11 +127,12 @@ async def websocket_endpoint(
     websocket: WebSocket,
     authorization: str | None = Header(default=None),
     config: Config = Depends(get_config),
+    db: Session = Depends(get_db),
 ) -> None:
     if authorization is None:
         raise WebSocketException(401, "Unauthorized")
     userid = get_userid_from_jwt(
-        authorization.split(" ")[-1], config.secret_key, config.algorithm
+        authorization.split(" ")[-1], config.secret_key, config.algorithm, db=db
     )
     if userid is None:
         raise WebSocketException(401, "Unauthorized")
