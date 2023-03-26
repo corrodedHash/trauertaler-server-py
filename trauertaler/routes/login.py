@@ -43,8 +43,8 @@ def create_token(db: Session, config: Config, userid: str) -> Token:
             expires_delta = timedelta(minutes=15)
         expire = timestamp + expires_delta
 
-        to_encode.update({"exp": expire})
-        to_encode.update({"iss": timestamp})
+        to_encode.update({"exp": str(expire)})
+        to_encode.update({"iss": str(timestamp)})
         encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
         return encoded_jwt
