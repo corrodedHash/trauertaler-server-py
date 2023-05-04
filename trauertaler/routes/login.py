@@ -50,7 +50,7 @@ def create_token(db: Session, config: Config, userid: str) -> Token:
         return encoded_jwt
 
     access_token_expires = timedelta(minutes=config.access_token_exprire_minutes)
-    maybe_timestamp = db.query(sqlalchemy.sql.func.now()).first()
+    maybe_timestamp = db.query(sqlalchemy.sql.func.now).first()
     if maybe_timestamp is None:
         raise HTTPException(500, "Could not get server timestamp")
 
@@ -79,7 +79,7 @@ def get_userid_from_jwt(
         return None
     issue_date = datetime.strptime(issue_date_str, "%m/%d/%y %H:%M:%S.%f")
 
-    now_timestamp_maybe = db.query(sqlalchemy.sql.func.now()).first()
+    now_timestamp_maybe = db.query(sqlalchemy.sql.func.now).first()
     assert now_timestamp_maybe is not None
     now_timestamp: datetime = now_timestamp_maybe[0]
     if expiry_date < now_timestamp:
@@ -120,8 +120,8 @@ async def get_current_user_id(
         if userid is None:
             raise credentials_exception
         return userid
-    except:
-        raise credentials_exception
+    except Exception as exc:
+        raise credentials_exception from exc
 
 
 @router.post("/token", response_model=Token)

@@ -1,17 +1,19 @@
+"""Test the API"""
+import os
 import tempfile
 from typing import Generator
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-import os
-from trauertaler.models import Base as DBBase
+
 from trauertaler.config import config
 from trauertaler.database import get_db
 from trauertaler.main import app
+from trauertaler.models import Base as DBBase
 
 client = TestClient(app)
-SQLALCHEMY_DATABASE_URL = f"sqlite:///:memory:"
+# SQLALCHEMY_DATABASE_URL = f"sqlite:///:memory:"
 db_temppath = tempfile.mkstemp(suffix=".db")[1]
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_temppath}"
 
@@ -33,17 +35,19 @@ DBBase.metadata.create_all(bind=engine)
 
 
 def override_get_db() -> Generator[Session, None, None]:
-    db = TestingSessionLocal()
+    """Create a mock database"""
+    db_session = TestingSessionLocal()
     try:
-        yield db
+        yield db_session
     finally:
-        db.close()
+        db_session.close()
 
 
 app.dependency_overrides[get_db] = override_get_db
 
 
 def test_read_item() -> None:
+    """Test the basic setup of the API"""
     response = client.post(
         "/admin/add_user",
         auth=("admin", config.admin_pass + "a"),
@@ -83,7 +87,7 @@ def test_read_item() -> None:
 
     response = client.post(
         "/token",
-        content=f"grant_type=password&username=hihi&password=bla",
+        content="grant_type=password&username=hihi&password=bla",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert response.status_code == 200
@@ -91,7 +95,7 @@ def test_read_item() -> None:
 
     response = client.post(
         "/token",
-        content=f"grant_type=password&username=hoho&password=bla",
+        content="grant_type=password&username=hoho&password=bla",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert response.status_code == 200
